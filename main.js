@@ -1,92 +1,46 @@
-/* ================================================================
-   main.js — Logika utama aplikasi CanvasKu
-   ================================================================
-   KONFIGURASI AKTIF di file ini:
-     ✅ TOOL AKTIF    : Pensil, Kuas, Penghapus, Pipet Warna
-     🚫 TOOL NONAKTIF : Semprot, Isi Warna, Garis, Panah, Persegi,
-                        Lingkaran, Segitiga, Poligon, Bintang, Teks
-     🚫 SIDEBAR KANAN : Terlihat tapi TIDAK BISA diklik / diinteraksi
-   ================================================================
-   Pembatasan ini diterapkan di DUA tempat:
-     1. Fungsi setTool() → memblokir pergantian tool yang tidak izinkan
-     2. IIFE di bagian bawah → menonaktifkan tombol & sidebar secara DOM
-   ================================================================ */
-
-// ----------------------------------------------------------------
-// REFERENSI ELEMEN HTML
-// Mengambil referensi ke elemen-elemen penting di halaman
-// ----------------------------------------------------------------
-
-// Kanvas utama tempat hasil gambar akhir disimpan
 const canvas = document.getElementById("main-canvas");
-// Context 2D dari kanvas utama, digunakan untuk semua operasi menggambar
 const ctx = canvas.getContext("2d");
-// Kanvas overlay transparan di atas kanvas utama, digunakan untuk
-// pratinjau bentuk secara real-time saat mouse bergerak (sebelum dilepas)
 const overlay = document.getElementById("overlay-canvas");
-// Context 2D dari kanvas overlay
 const octx = overlay.getContext("2d");
-// Elemen <textarea> yang muncul di kanvas saat tool Teks aktif
 const textEl = document.getElementById("text-input-el");
-// Div pembungkus kanvas; digunakan untuk efek zoom via CSS transform
 const wrapper = document.getElementById("canvas-wrapper");
 
-// ----------------------------------------------------------------
-// STATE GLOBAL — Status dan kondisi aplikasi saat ini
-// ----------------------------------------------------------------
-
-let currentTool = "pencil"; // Tool yang sedang dipilih pengguna
-let isDrawing = false;       // true saat tombol mouse/touch ditekan dan sedang menggambar
+let currentTool = "pencil";
+let isDrawing = false;
 let startX = 0,
-  startY = 0;               // Koordinat awal klik (titik mulai garis/bentuk)
-let zoom = 1;               // Tingkat zoom kanvas (1.0 = 100%, 0.5 = 50%, dst.)
-let gridVisible = false;    // Apakah grid bantu sedang ditampilkan di atas kanvas
-let smoothMode = false;     // Mode garis halus: true = kurva Bezier, false = garis lurus
-let gridCanvas = null;      // Elemen <canvas> grid (dibuat saat pertama kali diaktifkan)
-
-// ----------------------------------------------------------------
-// VARIABEL GAYA / STYLE
-// Nilai-nilai ini digunakan saat menggambar ke kanvas
-// ----------------------------------------------------------------
+  startY = 0;
+let zoom = 1;
+let gridVisible = false;
+let smoothMode = false;
+let gridCanvas = null;
 
 // Style
-let strokeColor = "#000000"; // Warna garis (stroke) — default hitam
-let fillColor = "#ffffff";   // Warna isi (fill) — default putih
-let brushSize = 4;           // Ketebalan kuas/pensil dalam piksel
-let opacityVal = 1;          // Opasitas gambar: 0.0 (transparan) s/d 1.0 (penuh)
-let blurVal = 0;             // Efek blur Gaussian dalam piksel (0 = tidak ada blur)
-let useStroke = true;        // true = gambar outline/tepi bentuk
-let useFill = false;         // true = isi bagian dalam bentuk dengan fillColor
-let lineCap = "round";       // Gaya ujung garis: "round" | "square" | "butt"
-let dashPattern = [];        // Array pola garis putus-putus, [] = solid/penuh
-let polygonSides = 6;        // Jumlah sisi poligon reguler (3=segitiga, 6=heksagon, dst.)
-let cornerRadius = 0;        // Radius sudut membulat untuk tool Persegi (px)
-let fontSize = 24;           // Ukuran font untuk tool Teks (piksel)
-let fontFamily = "Arial";    // Nama font untuk tool Teks
-let fontBold = false;        // true = teks dicetak tebal (bold)
-let fontItalic = false;      // true = teks dicetak miring (italic)
-
-// ----------------------------------------------------------------
-// VARIABEL STATUS MENGGAMBAR
-// ----------------------------------------------------------------
+let strokeColor = "#000000";
+let fillColor = "#ffffff";
+let brushSize = 4;
+let opacityVal = 1;
+let blurVal = 0;
+let useStroke = true;
+let useFill = false;
+let lineCap = "round";
+let dashPattern = [];
+let polygonSides = 6;
+let cornerRadius = 0;
+let fontSize = 24;
+let fontFamily = "Arial";
+let fontBold = false;
+let fontItalic = false;
 
 // Path
-let pathPoints = [];           // Array {x, y} yang merekam jalur gerakan mouse
-                               // untuk tool Pensil dan Kuas (dipakai drawSmoothPath)
-let polyPoints = [];           // Array {x, y} titik-titik klik untuk tool Poligon
-let sprayTimer = null;         // ID interval setInterval() untuk efek semprot
-                               // yang terus menyemprot selama mouse ditekan
-let textPos = { x: 0, y: 0 }; // Posisi kanvas tempat teks akan dirender
-
-// ----------------------------------------------------------------
-// VARIABEL RIWAYAT (UNDO / REDO)
-// Sistem snapshot: setiap aksi menyimpan salinan kanvas sebagai dataURL
-// ----------------------------------------------------------------
+let pathPoints = [];
+let polyPoints = [];
+let sprayTimer = null;
+let textPos = { x: 0, y: 0 };
 
 // History
-const MAX_HIST = 40; // Batas maksimum snapshot yang disimpan (menghindari memori penuh)
-let history = [];    // Array berisi dataURL snapshot kanvas dari setiap aksi
-let histIdx = -1;    // Indeks snapshot aktif di array history (-1 = belum ada riwayat)
+const MAX_HIST = 40;
+let history = [];
+let histIdx = -1;
 
 /* ============================================================
    PALETTE
@@ -230,22 +184,6 @@ const toolNames = {
 };
 
 function setTool(tool) {
-  /* ============================================================
-     PEMBATASAN TOOL — JANGAN HAPUS BLOK INI
-     Hanya tool berikut yang diizinkan aktif:
-       - pencil     → Pensil
-       - brush      → Kuas
-       - eraser     → Penghapus
-       - eyedropper → Pipet Warna
-     Semua tool lain (termasuk shortcut keyboard) akan diabaikan.
-  ============================================================ */
-  const ALLOWED_TOOLS = ["pencil", "brush", "eraser", "eyedropper"];
-  if (!ALLOWED_TOOLS.includes(tool)) {
-    // Tool ini dinonaktifkan — abaikan permintaan pergantian tool
-    return;
-  }
-  /* ============================================================ */
-
   finishTextInput();
   if (currentTool === "polygon" && tool !== "polygon") finishPolygon();
   currentTool = tool;
@@ -1041,54 +979,3 @@ setTool("pencil");
 setZoom(1);
 document.getElementById("stat-size").textContent =
   `${canvas.width} × ${canvas.height}`;
-
-/* ============================================================
-   NONAKTIFKAN SIDEBAR KANAN — JANGAN HAPUS BLOK INI
-   Sidebar kanan tetap TERLIHAT tapi tidak bisa diklik atau
-   diinteraksikan sama sekali (pointer-events: none).
-   Semua kontrol di dalamnya (slider, color picker, tombol, dst)
-   sudah diblokir secara visual maupun fungsional.
-============================================================ */
-(function disableRightSidebar() {
-  const rightSidebar = document.getElementById("props");
-  if (!rightSidebar) return;
-  rightSidebar.style.pointerEvents = "none"; // Blokir semua klik/interaksi
-  rightSidebar.style.userSelect = "none";    // Blokir seleksi teks
-  rightSidebar.style.opacity = "0.55";       // Efek visual "tidak aktif"
-  rightSidebar.title = "Panel ini dinonaktifkan";
-})();
-
-/* ============================================================
-   NONAKTIFKAN TOMBOL TOOLBAR KIRI — JANGAN HAPUS BLOK INI
-   Hanya 4 tool yang tetap aktif:
-     ✅ pencil     → Pensil
-     ✅ brush      → Kuas
-     ✅ eraser     → Penghapus
-     ✅ eyedropper → Pipet Warna
-   Semua tombol lain di bawah dinonaktifkan secara visual dan
-   fungsional (disabled + onclick dihapus + style diubah).
-============================================================ */
-(function disableLeftToolbarButtons() {
-  const DISABLED_TOOLS = [
-    "spray",    // Semprot
-    "fill",     // Isi Warna
-    "line",     // Garis
-    "arrow",    // Panah
-    "rect",     // Persegi
-    "circle",   // Lingkaran
-    "triangle", // Segitiga
-    "polygon",  // Poligon
-    "star",     // Bintang
-    "text",     // Teks
-  ];
-
-  DISABLED_TOOLS.forEach(function (toolId) {
-    const btn = document.getElementById("t-" + toolId);
-    if (!btn) return;
-    btn.disabled = true;               // Nonaktifkan elemen button secara HTML
-    btn.removeAttribute("onclick");    // Hapus event handler onclick dari HTML
-    // btn.style.opacity = "0.3";         // Efek visual "disabled" (transparan)
-    // btn.style.cursor = "not-allowed";  // Cursor menunjukkan tombol tidak bisa diklik
-    // btn.title = "Tool ini dinonaktifkan";
-  });
-})();
