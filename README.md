@@ -1,5 +1,5 @@
-# HAMBAR
+# CANVASKU
 
 Live preview :
 
-fadilms18.github.io/hambar
+fadilms18.github.io/canvasku
