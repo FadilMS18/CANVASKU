@@ -11,7 +11,6 @@ let startX = 0,
   startY = 0;
 let zoom = 1;
 let gridVisible = false;
-let smoothMode = false;
 let gridCanvas = null;
 
 // Style
@@ -21,7 +20,7 @@ let brushSize = 4;
 let opacityVal = 1;
 let blurVal = 0;
 let useStroke = true;
-let useFill = false;
+let useFill = true;
 let lineCap = "round";
 let dashPattern = [];
 let polygonSides = 6;
@@ -128,15 +127,9 @@ function bindSlider(id, valId, suffix, cb) {
 bindSlider("size-slider", "size-val", "", (v) => (brushSize = v));
 bindSlider("opacity-slider", "opacity-val", "%", (v) => (opacityVal = v / 100));
 bindSlider("blur-slider", "blur-val", "", (v) => (blurVal = v));
-bindSlider("sides-slider", "sides-val", "", (v) => (polygonSides = v));
-bindSlider("corner-slider", "corner-val", "", (v) => (cornerRadius = v));
+
 bindSlider("font-size-slider", "font-size-val", "", (v) => (fontSize = v));
-document
-  .getElementById("linecap-select")
-  .addEventListener("change", (e) => (lineCap = e.target.value));
-document.getElementById("dash-select").addEventListener("change", (e) => {
-  dashPattern = e.target.value ? e.target.value.split(",").map(Number) : [];
-});
+
 document
   .getElementById("font-family-select")
   .addEventListener("change", (e) => (fontFamily = e.target.value));
@@ -144,16 +137,6 @@ document
 /* ============================================================
    TOGGLES
 ============================================================ */
-function toggleStroke() {
-  useStroke = !useStroke;
-  document
-    .getElementById("btn-stroke-on")
-    .classList.toggle("active", useStroke);
-}
-function toggleFill() {
-  useFill = !useFill;
-  document.getElementById("btn-fill-on").classList.toggle("active", useFill);
-}
 function toggleBold() {
   fontBold = !fontBold;
   document.getElementById("btn-bold").classList.toggle("active", fontBold);
@@ -172,9 +155,6 @@ const toolNames = {
   eraser: "Penghapus",
   spray: "Semprot",
   fill: "Isi Warna",
-  eyedropper: "Pipet Warna",
-  line: "Garis",
-  arrow: "Panah",
   rect: "Persegi",
   circle: "Lingkaran",
   triangle: "Segitiga",
@@ -196,19 +176,22 @@ function setTool(tool) {
   const hints = {
     polygon: "Klik untuk menambah titik · Klik ganda untuk menutup",
     fill: "Klik area untuk mengisi warna",
-    eyedropper: "Klik piksel untuk memilih warna",
     text: "Klik kanvas lalu ketik · Enter untuk selesai",
   };
   document.getElementById("stat-hint").textContent =
     hints[tool] || "Tekan Ctrl+Z untuk Undo";
-  const cursorMap = {
-    eraser: "cell",
-    fill: "cell",
-    eyedropper: "crosshair",
-    text: "text",
-  };
-  const cur = cursorMap[tool] || "crosshair";
-  canvas.style.cursor = cur;
+
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (FREEHAND_TOOLS.includes(tool)) {
+    // cursor asli disembunyikan, diganti lingkaran custom yang mengikuti mouse
+    canvas.style.cursor = "none";
+  } else {
+    const cursorMap = {
+      fill: "cell",
+      text: "text",
+    };
+    canvas.style.cursor = cursorMap[tool] || getCrosshairCursor();
+  }
 }
 
 /* ============================================================
@@ -236,6 +219,55 @@ function getFont() {
 }
 
 /* ============================================================
+   CURSOR KONTRAS (biar tidak menyatu dengan kanvas putih)
+============================================================ */
+function getCrosshairCursor() {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'>
+    <line x1='10' y1='0' x2='10' y2='20' stroke='white' stroke-width='3'/>
+    <line x1='0' y1='10' x2='20' y2='10' stroke='white' stroke-width='3'/>
+    <line x1='10' y1='0' x2='10' y2='20' stroke='black' stroke-width='1'/>
+    <line x1='0' y1='10' x2='20' y2='10' stroke='black' stroke-width='1'/>
+  </svg>`;
+  return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}") 10 10, crosshair`;
+}
+
+const FREEHAND_TOOLS = ["pencil", "brush", "eraser", "spray"];
+
+function brushCursorRadius() {
+  if (currentTool === "eraser") return brushSize; // lineWidth = brushSize*2
+  if (currentTool === "brush") return (brushSize * 3) / 2; // lineWidth = brushSize*3
+  if (currentTool === "spray") return brushSize * 4 + 4; // radius semprot
+  return Math.max(brushSize / 2, 1); // pencil
+}
+
+function drawBrushCursor(x, y) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  const r = brushCursorRadius();
+  octx.save();
+  octx.globalAlpha = 1;
+  octx.filter = "none";
+  octx.setLineDash([]);
+  // outline putih tebal (kontras di background gelap)
+  octx.beginPath();
+  octx.arc(x, y, r, 0, Math.PI * 2);
+  octx.lineWidth = 3;
+  octx.strokeStyle = "#ffffff";
+  octx.stroke();
+  // outline hitam tipis di atasnya (kontras di background terang)
+  octx.beginPath();
+  octx.arc(x, y, r, 0, Math.PI * 2);
+  octx.lineWidth = 1;
+  octx.strokeStyle = "#000000";
+  octx.stroke();
+  // titik pusat
+  octx.beginPath();
+  octx.arc(x, y, 1.5, 0, Math.PI * 2);
+  octx.fillStyle = "#000000";
+  octx.fill();
+  octx.restore();
+}
+
+/* ============================================================
    GET MOUSE POS
 ============================================================ */
 function getPos(e) {
@@ -252,6 +284,7 @@ canvas.addEventListener("mousedown", onDown);
 canvas.addEventListener("mousemove", onMove);
 canvas.addEventListener("mouseup", onUp);
 canvas.addEventListener("mouseleave", (e) => {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
   if (isDrawing) onUp(e);
 });
 canvas.addEventListener(
@@ -288,10 +321,6 @@ function onDown(e) {
   const p = getPos(e);
   if (currentTool === "text") {
     startTextInput(p.x, p.y);
-    return;
-  }
-  if (currentTool === "eyedropper") {
-    pickColor(p.x, p.y);
     return;
   }
   if (currentTool === "fill") {
@@ -331,6 +360,10 @@ function onMove(e) {
   const p = getPos(e);
   document.getElementById("stat-pos").textContent =
     `${Math.round(p.x)}, ${Math.round(p.y)}`;
+
+  if (FREEHAND_TOOLS.includes(currentTool)) {
+    drawBrushCursor(p.x, p.y);
+  }
 
   if (currentTool === "polygon" && polyPoints.length > 0) {
     drawPolyPreview(p.x, p.y);
@@ -400,14 +433,7 @@ function drawShape(c, tool, x1, y1, x2, y2) {
     h = y2 - y1;
   c.beginPath();
   switch (tool) {
-    case "line":
-      c.moveTo(x1, y1);
-      c.lineTo(x2, y2);
-      if (useStroke) c.stroke();
-      break;
-    case "arrow":
-      drawArrow(c, x1, y1, x2, y2);
-      break;
+
     case "rect":
       if (cornerRadius > 0) roundRect(c, x1, y1, w, h, cornerRadius);
       else c.rect(x1, y1, w, h);
@@ -462,25 +488,6 @@ function drawShape(c, tool, x1, y1, x2, y2) {
   }
 }
 
-function drawArrow(c, x1, y1, x2, y2) {
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const len = Math.hypot(x2 - x1, y2 - y1);
-  const headLen = Math.min(brushSize * 6 + 12, len * 0.4);
-  const ha = 0.42;
-  c.moveTo(x1, y1);
-  c.lineTo(x2, y2);
-  c.lineTo(
-    x2 - headLen * Math.cos(angle - ha),
-    y2 - headLen * Math.sin(angle - ha),
-  );
-  c.moveTo(x2, y2);
-  c.lineTo(
-    x2 - headLen * Math.cos(angle + ha),
-    y2 - headLen * Math.sin(angle + ha),
-  );
-  if (useStroke) c.stroke();
-}
-
 function drawRegPoly(c, cx, cy, r, n) {
   c.beginPath();
   for (let i = 0; i < n; i++) {
@@ -525,22 +532,13 @@ function roundRect(c, x, y, w, h, r) {
 }
 
 /* ============================================================
-   SMOOTH PATH
+   PATH
 ============================================================ */
 function drawSmoothPath(c, pts) {
   if (pts.length < 2) return;
   c.beginPath();
   c.moveTo(pts[0].x, pts[0].y);
-  if (smoothMode && pts.length > 2) {
-    for (let i = 1; i < pts.length - 1; i++) {
-      const mx = (pts[i].x + pts[i + 1].x) / 2,
-        my = (pts[i].y + pts[i + 1].y) / 2;
-      c.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
-    }
-    c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-  } else {
-    pts.slice(1).forEach((p) => c.lineTo(p.x, p.y));
-  }
+  pts.slice(1).forEach((p) => c.lineTo(p.x, p.y));
   c.stroke();
 }
 
@@ -613,20 +611,6 @@ function sprayAt(x, y) {
     ctx.fill();
   }
   resetCtx(ctx);
-}
-
-/* ============================================================
-   COLOR PICKER
-============================================================ */
-function pickColor(x, y) {
-  const data = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
-  const hex =
-    "#" +
-    [data[0], data[1], data[2]]
-      .map((v) => v.toString(16).padStart(2, "0"))
-      .join("");
-  setStrokeColor(hex);
-  showToast("Warna dipilih: " + hex);
 }
 
 /* ============================================================
@@ -877,15 +861,6 @@ function drawGrid() {
 }
 
 /* ============================================================
-   SMOOTH
-============================================================ */
-function toggleSmooth() {
-  smoothMode = !smoothMode;
-  document.getElementById("btn-smooth").classList.toggle("active", smoothMode);
-  showToast("Mode halus: " + (smoothMode ? "ON" : "OFF"));
-}
-
-/* ============================================================
    EXPORT
 ============================================================ */
 function exportPNG() {
@@ -950,9 +925,6 @@ document.addEventListener("keydown", (e) => {
     e: "eraser",
     q: "spray",
     g: "fill",
-    i: "eyedropper",
-    l: "line",
-    a: "arrow",
     r: "rect",
     c: "circle",
     t: "triangle",

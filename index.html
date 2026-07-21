@@ -120,26 +120,10 @@
           <path d="M6 8L3 5M3 5L5 3M3 5l-1 3" />
         </svg>
       </button>
-      <button class="tool-btn" id="t-eyedropper" data-tip="Pipet Warna (I)" onclick="setTool('eyedropper')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M2 22l1-1h3l9-9" />
-          <path d="M3 21v-3l9-9" />
-          <path d="M15 6l3.4-3.4a2 2 0 0 1 2.8 0L22 3.4a2 2 0 0 1 0 2.8L18.6 9.8" />
-          <path d="M15 6L6 15l3 3" />
-        </svg>
-      </button>
+      
       <div class="tool-sep"></div>
-      <button class="tool-btn" id="t-line" data-tip="Garis (L)" onclick="setTool('line')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="5" y1="19" x2="19" y2="5" />
-        </svg>
-      </button>
-      <button class="tool-btn" id="t-arrow" data-tip="Panah (A)" onclick="setTool('arrow')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="5" y1="12" x2="19" y2="12" />
-          <polyline points="12 5 19 12 12 19" />
-        </svg>
-      </button>
+      
+      
       <button class="tool-btn" id="t-rect" data-tip="Persegi (R)" onclick="setTool('rect')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -235,42 +219,6 @@
         </div>
       </div>
 
-      <div class="prop-section">
-        <div class="prop-label">Opsi Bentuk</div>
-        <div class="toggle-row">
-          <button class="toggle-btn active" id="btn-stroke-on" onclick="toggleStroke()">
-            Stroke
-          </button>
-          <button class="toggle-btn" id="btn-fill-on" onclick="toggleFill()">
-            Fill
-          </button>
-        </div>
-        <div class="prop-row">
-          <label>Sisi Poly</label>
-          <input type="range" id="sides-slider" min="3" max="12" value="6" />
-          <span class="val" id="sides-val">6</span>
-        </div>
-        <div class="prop-row">
-          <label>Sudut</label>
-          <input type="range" id="corner-slider" min="0" max="60" value="0" />
-          <span class="val" id="corner-val">0</span>
-        </div>
-      </div>
-
-      <div class="prop-section">
-        <div class="prop-label">Gaya Garis</div>
-        <select class="prop-input" id="linecap-select">
-          <option value="round">Round (bulat)</option>
-          <option value="square">Square (persegi)</option>
-          <option value="butt">Butt (datar)</option>
-        </select>
-        <select class="prop-input" id="dash-select" style="margin-top: 5px">
-          <option value="">─── Solid</option>
-          <option value="8,5">- - - Dashed</option>
-          <option value="2,5">··· Dotted</option>
-          <option value="12,4,2,4">-·- Dash-dot</option>
-        </select>
-      </div>
 
       <div class="prop-section" id="text-options">
         <div class="prop-label">Opsi Teks</div>
@@ -325,9 +273,6 @@
         <div class="toggle-row">
           <button class="toggle-btn" id="btn-grid" onclick="toggleGrid()">
             Grid
-          </button>
-          <button class="toggle-btn" id="btn-smooth" onclick="toggleSmooth()">
-            Smooth
           </button>
         </div>
       </div>
